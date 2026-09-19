@@ -1,5 +1,5 @@
 --===============================================
--- 🐉 DRAGON ADVENTURES - PAINEL COMPLETO
+-- 🐉 DRAGON ADVENTURES PANEL v2 - CORRIGIDO
 -- UI: Rayfield
 --===============================================
 
@@ -8,7 +8,6 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -22,20 +21,17 @@ local camera = Workspace.CurrentCamera
 -- ESTADO GLOBAL
 --===============================================
 local state = {
-    -- Farm
     autoFarmResource = false,
     autoFarmFood = false,
     autoFarmCoins = false,
     autoFarmExp = false,
     autoCollectChests = false,
     autoFarmMobs = false,
-    -- Dragons
     autoFeed = false,
     autoHatch = false,
     autoTrain = false,
     godmodeDragon = false,
     noCooldown = false,
-    -- ESP
     espEggs = false,
     espResources = false,
     espFood = false,
@@ -43,19 +39,18 @@ local state = {
     espMobs = false,
     espPlayers = false,
     espDragons = false,
-    -- Player
     fly = false,
     infiniteJump = false,
     noclip = false,
-    -- Utils
     antiAfk = false,
 }
 
 local connections = {}
 local espObjects = {}
-local flyBV, flyBG
+local flyBV, flyBG, flyAttachment
 local flySpeedValue = 100
 local speedValue = 16
+local espMaxDistance = 500 -- Distância máxima padrão
 
 --===============================================
 -- HELPERS
@@ -72,8 +67,10 @@ end
 local function clearESP(key)
     if espObjects[key] then
         for _, data in ipairs(espObjects[key]) do
-            if data.billboard then data.billboard:Destroy() end
-            if data.highlight then data.highlight:Destroy() end
+            pcall(function()
+                if data.billboard then data.billboard:Destroy() end
+                if data.highlight then data.highlight:Destroy() end
+            end)
         end
         espObjects[key] = {}
     end
@@ -116,9 +113,9 @@ end
 -- CRIAR JANELA
 --===============================================
 local Window = Rayfield:CreateWindow({
-    Name = "🐉 Dragon Adventures Panel",
-    LoadingTitle = "Carregando painel...",
-    LoadingSubtitle = "aguarde",
+    Name = "🐉 Dragon Adventures Panel v2",
+    LoadingTitle = "Carregando...",
+    LoadingSubtitle = "v2 corrigido",
     Theme = "DarkBlue",
     ConfigurationSaving = {
         Enabled = true,
@@ -144,7 +141,7 @@ FarmTab:CreateToggle({
         if value then
             notify("Farm", "Auto Farm Recursos ATIVADO", 3)
             connections.farmRes = RunService.Heartbeat:Connect(function()
-                if not state.autoFarmResource then return end
+                if not state.autoFarmResource or not rootPart or not rootPart.Parent then return end
                 pcall(function()
                     local closest, dist = nil, math.huge
                     for _, obj in ipairs(Workspace:GetDescendants()) do
@@ -154,10 +151,7 @@ FarmTab:CreateToggle({
                             or obj.Name:lower():find("wood")
                             or obj.Name:lower():find("stone")) then
                             local d = (obj.Position - rootPart.Position).Magnitude
-                            if d < dist and d < 500 then
-                                dist = d
-                                closest = obj
-                            end
+                            if d < dist and d < 500 then dist = d closest = obj end
                         end
                     end
                     if closest then
@@ -178,9 +172,8 @@ FarmTab:CreateToggle({
     Callback = function(value)
         state.autoFarmFood = value
         if value then
-            notify("Farm", "Auto Farm Comida ATIVADO", 3)
             connections.farmFood = RunService.Heartbeat:Connect(function()
-                if not state.autoFarmFood then return end
+                if not state.autoFarmFood or not rootPart or not rootPart.Parent then return end
                 pcall(function()
                     for _, obj in ipairs(Workspace:GetDescendants()) do
                         if obj:IsA("BasePart") and (obj.Name:lower():find("food")
@@ -208,9 +201,8 @@ FarmTab:CreateToggle({
     Callback = function(value)
         state.autoFarmCoins = value
         if value then
-            notify("Farm", "Auto Farm Coins ATIVADO", 3)
             connections.farmCoins = RunService.Heartbeat:Connect(function()
-                if not state.autoFarmCoins then return end
+                if not state.autoFarmCoins or not rootPart or not rootPart.Parent then return end
                 pcall(function()
                     for _, obj in ipairs(Workspace:GetDescendants()) do
                         if obj:IsA("BasePart") and (obj.Name:lower():find("coin")
@@ -237,9 +229,7 @@ FarmTab:CreateToggle({
     Flag = "AutoFarmExp",
     Callback = function(value)
         state.autoFarmExp = value
-        if value then
-            notify("Farm", "Auto Farm EXP ATIVADO (treine o dragão)", 3)
-        end
+        if value then notify("Farm", "Auto Farm EXP ATIVADO", 3) end
     end,
 })
 
@@ -250,9 +240,8 @@ FarmTab:CreateToggle({
     Callback = function(value)
         state.autoCollectChests = value
         if value then
-            notify("Farm", "Auto Coletar Baús ATIVADO", 3)
             connections.collectChests = RunService.Heartbeat:Connect(function()
-                if not state.autoCollectChests then return end
+                if not state.autoCollectChests or not rootPart or not rootPart.Parent then return end
                 pcall(function()
                     for _, obj in ipairs(Workspace:GetDescendants()) do
                         if obj:IsA("BasePart") and (obj.Name:lower():find("chest")
@@ -280,9 +269,8 @@ FarmTab:CreateToggle({
     Callback = function(value)
         state.autoFarmMobs = value
         if value then
-            notify("Farm", "Auto Farm Mobs ATIVADO", 3)
             connections.farmMobs = RunService.Heartbeat:Connect(function()
-                if not state.autoFarmMobs then return end
+                if not state.autoFarmMobs or not rootPart or not rootPart.Parent then return end
                 pcall(function()
                     local closest, dist = nil, math.huge
                     for _, model in ipairs(Workspace:GetDescendants()) do
@@ -291,10 +279,7 @@ FarmTab:CreateToggle({
                             local hrp = model:FindFirstChild("HumanoidRootPart")
                             if hum and hrp and hum.Health > 0 and not Players:GetPlayerFromCharacter(model) then
                                 local d = (hrp.Position - rootPart.Position).Magnitude
-                                if d < dist and d < 500 then
-                                    dist = d
-                                    closest = hrp
-                                end
+                                if d < dist and d < 500 then dist = d closest = hrp end
                             end
                         end
                     end
@@ -326,7 +311,7 @@ DragonTab:CreateToggle({
             notify("Dragon", "Auto Feed ATIVADO", 3)
             connections.autoFeed = RunService.Heartbeat:Connect(function()
                 if not state.autoFeed then return end
-                -- AJUSTE AQUI: ReplicatedStorage.Remotes.FeedDragon:FireServer()
+                -- AJUSTE AQUI
             end)
         else
             if connections.autoFeed then connections.autoFeed:Disconnect() end
@@ -344,7 +329,7 @@ DragonTab:CreateToggle({
             notify("Dragon", "Auto Hatch ATIVADO", 3)
             connections.autoHatch = RunService.Heartbeat:Connect(function()
                 if not state.autoHatch then return end
-                -- AJUSTE AQUI: interaja com o ninho
+                -- AJUSTE AQUI
             end)
         else
             if connections.autoHatch then connections.autoHatch:Disconnect() end
@@ -359,10 +344,9 @@ DragonTab:CreateToggle({
     Callback = function(value)
         state.autoTrain = value
         if value then
-            notify("Dragon", "Auto Train ATIVADO", 3)
             connections.autoTrain = RunService.Heartbeat:Connect(function()
                 if not state.autoTrain then return end
-                -- AJUSTE AQUI: lógica de treino
+                -- AJUSTE AQUI
             end)
         else
             if connections.autoTrain then connections.autoTrain:Disconnect() end
@@ -379,7 +363,7 @@ DragonTab:CreateToggle({
     Callback = function(value)
         state.godmodeDragon = value
         if value then
-            notify("Dragon", "⚠️ Godmode client-side (pode não funcionar)", 5)
+            notify("Dragon", "⚠️ Godmode client-side", 5)
             connections.godmode = RunService.Heartbeat:Connect(function()
                 if not state.godmodeDragon then return end
                 pcall(function()
@@ -404,9 +388,7 @@ DragonTab:CreateToggle({
     Flag = "NoCooldown",
     Callback = function(value)
         state.noCooldown = value
-        if value then
-            notify("Dragon", "⚠️ No Cooldown é server-side", 5)
-        end
+        if value then notify("Dragon", "⚠️ Server-side", 5) end
     end,
 })
 
@@ -436,28 +418,55 @@ DragonTab:CreateSlider({
 })
 
 --===============================================
--- ABA 3: ESP
+-- ABA 3: ESP (COM LIMITE DE DISTÂNCIA)
 --===============================================
 local EspTab = Window:CreateTab("👁️ ESP", 4483362458)
 
+EspTab:CreateSection("Configuração de Distância")
+
+EspTab:CreateParagraph({
+    Title = "⚠️ AVISO IMPORTANTE",
+    Content = "Distância alta (acima de 500) pode CAUSAR LAG e até travar o jogo! Use com moderação. 0 = sem limite (NÃO recomendado)."
+})
+
+EspTab:CreateSlider({
+    Name = "Distância Máxima do ESP",
+    Range = {0, 1000},
+    Increment = 50,
+    Suffix = "studs",
+    CurrentValue = 500,
+    Flag = "EspMaxDistance",
+    Callback = function(value)
+        espMaxDistance = value
+        if value == 0 then
+            notify("ESP", "⚠️ Sem limite! Vai lagar se tiver muita coisa", 4)
+        elseif value > 700 then
+            notify("ESP", "⚠️ Distância alta, pode lagar", 3)
+        end
+    end,
+})
+
 EspTab:CreateSection("Objetos")
 
--- Função genérica pra criar ESP por nome
+-- Função genérica ESP por nome
 local function makeESPByName(key, color, searchTerms)
     return function(value)
         state[key] = value
         if value then
             espObjects[key] = espObjects[key] or {}
             connections[key] = RunService.Heartbeat:Connect(function()
-                if not state[key] then return end
+                if not state[key] or not rootPart or not rootPart.Parent then return end
                 pcall(function()
                     for _, obj in ipairs(Workspace:GetDescendants()) do
                         if obj:IsA("BasePart") and not obj:FindFirstChild("PanelESP") then
                             local name = obj.Name:lower()
                             for _, term in ipairs(searchTerms) do
                                 if name:find(term) then
-                                    local data = createESP(obj, color, obj.Name)
-                                    if data then table.insert(espObjects[key], data) end
+                                    local d = (obj.Position - rootPart.Position).Magnitude
+                                    if espMaxDistance == 0 or d <= espMaxDistance then
+                                        local data = createESP(obj, color, obj.Name)
+                                        if data then table.insert(espObjects[key], data) end
+                                    end
                                     break
                                 end
                             end
@@ -502,6 +511,7 @@ EspTab:CreateToggle({
 
 EspTab:CreateSection("Seres Vivos")
 
+-- ESP DE MOBS
 EspTab:CreateToggle({
     Name = "ESP de Mobs 👹",
     CurrentValue = false,
@@ -511,7 +521,7 @@ EspTab:CreateToggle({
         if value then
             espObjects.espMobs = espObjects.espMobs or {}
             connections.espMobs = RunService.Heartbeat:Connect(function()
-                if not state.espMobs then return end
+                if not state.espMobs or not rootPart or not rootPart.Parent then return end
                 pcall(function()
                     for _, model in ipairs(Workspace:GetDescendants()) do
                         if model:IsA("Model") and model ~= character then
@@ -519,8 +529,11 @@ EspTab:CreateToggle({
                             local hrp = model:FindFirstChild("HumanoidRootPart")
                             if hum and hrp and not Players:GetPlayerFromCharacter(model) 
                                 and not hrp:FindFirstChild("PanelESP") then
-                                local data = createESP(hrp, Color3.fromRGB(255, 100, 255), model.Name)
-                                if data then table.insert(espObjects.espMobs, data) end
+                                local d = (hrp.Position - rootPart.Position).Magnitude
+                                if espMaxDistance == 0 or d <= espMaxDistance then
+                                    local data = createESP(hrp, Color3.fromRGB(255, 100, 255), model.Name)
+                                    if data then table.insert(espObjects.espMobs, data) end
+                                end
                             end
                         end
                     end
@@ -533,6 +546,7 @@ EspTab:CreateToggle({
     end,
 })
 
+-- ESP DE JOGADORES (CORRIGIDO - monitora respawns)
 EspTab:CreateToggle({
     Name = "ESP de Jogadores 👤",
     CurrentValue = false,
@@ -542,19 +556,23 @@ EspTab:CreateToggle({
         if value then
             espObjects.espPlayers = espObjects.espPlayers or {}
             connections.espPlayers = RunService.Heartbeat:Connect(function()
-                if not state.espPlayers then return end
+                if not state.espPlayers or not rootPart or not rootPart.Parent then return end
                 pcall(function()
                     for _, p in ipairs(Players:GetPlayers()) do
                         if p ~= player and p.Character then
                             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
                             if hrp and not hrp:FindFirstChild("PanelESP") then
-                                local data = createESP(hrp, Color3.fromRGB(0, 255, 255), p.Name)
-                                if data then table.insert(espObjects.espPlayers, data) end
+                                local d = (hrp.Position - rootPart.Position).Magnitude
+                                if espMaxDistance == 0 or d <= espMaxDistance then
+                                    local data = createESP(hrp, Color3.fromRGB(0, 255, 255), p.Name)
+                                    if data then table.insert(espObjects.espPlayers, data) end
+                                end
                             end
                         end
                     end
                 end)
             end)
+            notify("ESP", "ESP de Jogadores ativado", 3)
         else
             if connections.espPlayers then connections.espPlayers:Disconnect() end
             clearESP("espPlayers")
@@ -562,6 +580,7 @@ EspTab:CreateToggle({
     end,
 })
 
+-- ESP DE DRAGÕES (CORRIGIDO - detecção ampliada)
 EspTab:CreateToggle({
     Name = "ESP de Dragões 🐉",
     CurrentValue = false,
@@ -571,20 +590,48 @@ EspTab:CreateToggle({
         if value then
             espObjects.espDragons = espObjects.espDragons or {}
             connections.espDragons = RunService.Heartbeat:Connect(function()
-                if not state.espDragons then return end
+                if not state.espDragons or not rootPart or not rootPart.Parent then return end
                 pcall(function()
-                    for _, model in ipairs(Workspace:GetDescendants()) do
-                        if model:IsA("Model") and model.Name:lower():find("dragon") then
-                            local hrp = model:FindFirstChild("HumanoidRootPart") 
-                                or model:FindFirstChildWhichIsA("BasePart")
-                            if hrp and not hrp:FindFirstChild("PanelESP") then
-                                local data = createESP(hrp, Color3.fromRGB(255, 50, 50), model.Name)
+                    for _, obj in ipairs(Workspace:GetDescendants()) do
+                        -- Detecta qualquer coisa que seja dragão (Model ou MeshPart)
+                        local isDragon = false
+                        local target = nil
+                        
+                        if obj:IsA("Model") then
+                            local n = obj.Name:lower()
+                            -- Detecção ampla: procura "dragon", "wyvern", "drake", "dragão"
+                            if n:find("dragon") or n:find("wyvern") 
+                                or n:find("drake") or n:find("drac") then
+                                isDragon = true
+                                target = obj:FindFirstChild("HumanoidRootPart") 
+                                    or obj.PrimaryPart 
+                                    or obj:FindFirstChildWhichIsA("BasePart")
+                            end
+                            -- Também detecta modelos que contêm "Dragon" em filhos
+                            if not isDragon then
+                                for _, child in ipairs(obj:GetChildren()) do
+                                    if child.Name:lower():find("dragon") then
+                                        isDragon = true
+                                        target = obj:FindFirstChild("HumanoidRootPart") 
+                                            or obj.PrimaryPart 
+                                            or obj:FindFirstChildWhichIsA("BasePart")
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        
+                        if isDragon and target and not target:FindFirstChild("PanelESP") then
+                            local d = (target.Position - rootPart.Position).Magnitude
+                            if espMaxDistance == 0 or d <= espMaxDistance then
+                                local data = createESP(target, Color3.fromRGB(255, 50, 50), target.Parent.Name)
                                 if data then table.insert(espObjects.espDragons, data) end
                             end
                         end
                     end
                 end)
             end)
+            notify("ESP", "ESP de Dragões ativado", 3)
         else
             if connections.espDragons then connections.espDragons:Disconnect() end
             clearESP("espDragons")
@@ -599,70 +646,136 @@ local PlayerTab = Window:CreateTab("🎮 Player", 4483362458)
 
 PlayerTab:CreateSection("Movimento")
 
--- FLY
+--===============================================
+-- FLY CORRIGIDO (usando LinearVelocity + AlignOrientation)
+--===============================================
+local function startFly()
+    if state.fly then return end
+    state.fly = true
+    
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return end
+    
+    -- Limpar anterior
+    if flyBV then pcall(function() flyBV:Destroy() end) flyBV = nil end
+    if flyBG then pcall(function() flyBG:Destroy() end) flyBG = nil end
+    if flyAttachment then pcall(function() flyAttachment:Destroy() end) flyAttachment = nil end
+    
+    -- Attachment
+    flyAttachment = Instance.new("Attachment")
+    flyAttachment.Name = "FlyAttachment"
+    flyAttachment.Parent = root
+    
+    -- LinearVelocity (movimento)
+    flyBV = Instance.new("LinearVelocity")
+    flyBV.Attachment0 = flyAttachment
+    flyBV.MaxForce = math.huge
+    flyBV.VectorVelocity = Vector3.zero
+    flyBV.RelativeTo = Enum.ActuatorRelativeTo.World
+    flyBV.Parent = root
+    
+    -- AlignOrientation (evita bug de rotação)
+    flyBG = Instance.new("AlignOrientation")
+    flyBG.Attachment0 = flyAttachment
+    flyBG.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    flyBG.MaxTorque = math.huge
+    flyBG.Responsiveness = 25
+    flyBG.PrimaryAxisOnly = false
+    flyBG.Parent = root
+    
+    hum.PlatformStand = true
+    hum.AutoRotate = false
+    
+    -- Loop de movimento
+    connections.fly = RunService.RenderStepped:Connect(function()
+        if not state.fly then return end
+        local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not root or not flyBV or not flyBG then return end
+        
+        local cam = Workspace.CurrentCamera
+        if not cam then return end
+        
+        local moveDir = Vector3.zero
+        local camCF = cam.CFrame
+        local flatForward = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z)
+        if flatForward.Magnitude > 0 then flatForward = flatForward.Unit end
+        local flatRight = Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z)
+        if flatRight.Magnitude > 0 then flatRight = flatRight.Unit end
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDir = moveDir + flatForward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDir = moveDir - flatForward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDir = moveDir - flatRight
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDir = moveDir + flatRight
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveDir = moveDir + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) 
+            or UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            moveDir = moveDir - Vector3.new(0, 1, 0)
+        end
+        
+        if moveDir.Magnitude > 0 then
+            moveDir = moveDir.Unit * flySpeedValue
+        end
+        
+        flyBV.VectorVelocity = moveDir
+        
+        -- Rotação suave na direção do movimento
+        if moveDir.Magnitude > 0.1 then
+            local lookDir = Vector3.new(moveDir.X, 0, moveDir.Z)
+            if lookDir.Magnitude > 0.1 then
+                flyBG.CFrame = CFrame.lookAt(Vector3.zero, lookDir.Unit)
+            end
+        end
+    end)
+    
+    notify("Player", "Fly ATIVADO ✈️", 3)
+end
+
+local function stopFly()
+    if not state.fly then return end
+    state.fly = false
+    
+    if connections.fly then connections.fly:Disconnect() connections.fly = nil end
+    if flyBV then pcall(function() flyBV:Destroy() end) flyBV = nil end
+    if flyBG then pcall(function() flyBG:Destroy() end) flyBG = nil end
+    if flyAttachment then pcall(function() flyAttachment:Destroy() end) flyAttachment = nil end
+    
+    local char = player.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.PlatformStand = false
+            hum.AutoRotate = true
+        end
+    end
+    
+    notify("Player", "Fly DESATIVADO", 3)
+end
+
 PlayerTab:CreateToggle({
     Name = "Fly ✈️",
     CurrentValue = false,
     Flag = "Fly",
     Callback = function(value)
-        state.fly = value
-        if value then
-            if flyBV then flyBV:Destroy() end
-            if flyBG then flyBG:Destroy() end
-
-            flyBV = Instance.new("BodyVelocity")
-            flyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            flyBV.Velocity = Vector3.zero
-            flyBV.Parent = rootPart
-
-            flyBG = Instance.new("BodyGyro")
-            flyBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-            flyBG.P = 1000
-            flyBG.D = 50
-            flyBG.Parent = rootPart
-
-            humanoid.PlatformStand = true
-
-            connections.fly = RunService.RenderStepped:Connect(function()
-                if not state.fly then return end
-                local moveDir = Vector3.zero
-                local camCF = camera.CFrame
-
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                    moveDir = moveDir + camCF.LookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                    moveDir = moveDir - camCF.LookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                    moveDir = moveDir - camCF.RightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                    moveDir = moveDir + camCF.RightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                    moveDir = moveDir + Vector3.new(0, 1, 0)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-                    moveDir = moveDir - Vector3.new(0, 1, 0)
-                end
-
-                flyBV.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * flySpeedValue or Vector3.zero
-                flyBG.CFrame = camCF
-            end)
-
-            notify("Player", "Fly ATIVADO ✈️", 3)
-        else
-            if connections.fly then connections.fly:Disconnect() end
-            if flyBV then flyBV:Destroy() flyBV = nil end
-            if flyBG then flyBG:Destroy() flyBG = nil end
-            humanoid.PlatformStand = false
-            notify("Player", "Fly DESATIVADO", 3)
-        end
+        if value then startFly() else stopFly() end
     end,
 })
 
--- SPEED HACK
+--===============================================
+-- SPEED HACK CORRIGIDO (com monitoramento contínuo)
+--===============================================
 PlayerTab:CreateSlider({
     Name = "Speed Hack 🏃",
     Range = {16, 500},
@@ -672,11 +785,29 @@ PlayerTab:CreateSlider({
     Flag = "SpeedHack",
     Callback = function(value)
         speedValue = value
-        if humanoid then humanoid.WalkSpeed = value end
+        -- Aplica imediatamente
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = value end
+        end
     end,
 })
 
+-- Loop que mantém a velocidade aplicada (importante: jogo pode resetar)
+connections.speedLoop = RunService.Heartbeat:Connect(function()
+    if speedValue <= 16 then return end
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.WalkSpeed ~= speedValue then
+        hum.WalkSpeed = speedValue
+    end
+end)
+
+--===============================================
 -- INFINITE JUMP
+--===============================================
 PlayerTab:CreateToggle({
     Name = "Infinite Jump 🦘",
     CurrentValue = false,
@@ -685,8 +816,11 @@ PlayerTab:CreateToggle({
         state.infiniteJump = value
         if value then
             connections.infJump = UserInputService.JumpRequest:Connect(function()
-                if state.infiniteJump and humanoid then
-                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                if not state.infiniteJump then return end
+                local char = player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
                 end
             end)
             notify("Player", "Infinite Jump ATIVADO", 3)
@@ -696,7 +830,9 @@ PlayerTab:CreateToggle({
     end,
 })
 
+--===============================================
 -- NOCLIP
+--===============================================
 PlayerTab:CreateToggle({
     Name = "Noclip 🚫",
     CurrentValue = false,
@@ -705,8 +841,10 @@ PlayerTab:CreateToggle({
         state.noclip = value
         if value then
             connections.noclip = RunService.Stepped:Connect(function()
-                if not state.noclip or not character then return end
-                for _, part in ipairs(character:GetDescendants()) do
+                if not state.noclip then return end
+                local char = player.Character
+                if not char then return end
+                for _, part in ipairs(char:GetDescendants()) do
                     if part:IsA("BasePart") and part.CanCollide then
                         part.CanCollide = false
                     end
@@ -715,8 +853,9 @@ PlayerTab:CreateToggle({
             notify("Player", "Noclip ATIVADO 🚫", 3)
         else
             if connections.noclip then connections.noclip:Disconnect() end
-            if character then
-                for _, part in ipairs(character:GetDescendants()) do
+            local char = player.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
                     if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
                         part.CanCollide = true
                     end
@@ -736,7 +875,7 @@ PlayerTab:CreateDropdown({
     Callback = function(option)
         local worldName = type(option) == "table" and option[1] or option
         notify("Teleporte", "Teleportando para: " .. worldName, 3)
-        -- AJUSTE AQUI: ReplicatedStorage.Remotes.Teleport:FireServer(worldName)
+        -- AJUSTE AQUI
     end,
 })
 
@@ -745,14 +884,16 @@ PlayerTab:CreateButton({
     Callback = function()
         pcall(function()
             local closest, dist = nil, math.huge
+            local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if not root then return end
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if obj:IsA("BasePart") and obj.Name:lower():find("chest") then
-                    local d = (obj.Position - rootPart.Position).Magnitude
+                    local d = (obj.Position - root.Position).Magnitude
                     if d < dist then dist = d closest = obj end
                 end
             end
             if closest then
-                rootPart.CFrame = CFrame.new(closest.Position + Vector3.new(0, 5, 0))
+                root.CFrame = CFrame.new(closest.Position + Vector3.new(0, 5, 0))
                 notify("Teleporte", "Teleportado!", 3)
             else
                 notify("Teleporte", "Nenhum baú encontrado", 3)
@@ -814,6 +955,7 @@ SettingsTab:CreateButton({
 SettingsTab:CreateButton({
     Name = "Destruir Painel ❌",
     Callback = function()
+        if state.fly then stopFly() end
         for _, conn in pairs(connections) do
             pcall(function() conn:Disconnect() end)
         end
@@ -822,37 +964,47 @@ SettingsTab:CreateButton({
         end
         if flyBV then flyBV:Destroy() end
         if flyBG then flyBG:Destroy() end
-        if humanoid then
-            humanoid.PlatformStand = false
-            humanoid.WalkSpeed = 16
-        end
+        if flyAttachment then flyAttachment:Destroy() end
         Rayfield:Destroy()
     end,
 })
 
 SettingsTab:CreateSection("Info")
 
-SettingsTab:CreateLabel("🐉 Dragon Adventures Panel")
-SettingsTab:CreateLabel("Versão 1.0")
+SettingsTab:CreateLabel("🐉 Dragon Adventures Panel v2")
+SettingsTab:CreateLabel("Versão 2.0 - Bug fixes")
 SettingsTab:CreateLabel("⚠️ Use por sua conta e risco")
 
 --===============================================
 -- INICIALIZAÇÃO
 --===============================================
 Rayfield:LoadConfiguration()
-notify("🐉 Dragon Adventures", "Painel carregado!", 5)
+notify("🐉 Dragon Adventures", "Painel v2 carregado!", 5)
 
 --===============================================
--- RESPAWN
+-- RESPAWN HANDLER (corrige fly, speed, ESP)
 --===============================================
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
     humanoid = newChar:WaitForChild("Humanoid")
     rootPart = newChar:WaitForChild("HumanoidRootPart")
     task.wait(1)
+    
+    -- Reaplica speed
     if humanoid and speedValue > 16 then
         humanoid.WalkSpeed = speedValue
     end
+    
+    -- Reativa fly se estava ativo
+    if state.fly then
+        state.fly = false
+        startFly()
+    end
+    
+    -- Limpa ESPs antigos (serão recriados)
+    for key, _ in pairs(espObjects) do
+        clearESP(key)
+    end
 end)
 
-print("🐉 Dragon Adventures Panel carregado!")
+print("🐉 Dragon Adventures Panel v2 carregado!")
